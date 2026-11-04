@@ -71,6 +71,17 @@ class QQInboundCodec(QQInboundCardMixin, QQInboundTextMixin):
         group_id = str(payload.get("group_id") or "").strip()
         # 群临时私聊也携带来源 group_id；会话类型必须以 message_type 为准。
         is_group_chat = message_type == "group"
+        if is_group_chat and not group_id:
+            raise ValueError("群消息缺少 group_id")
+        private_peer_id = sender_user_id
+        if not is_group_chat and self_id and sender_user_id == self_id:
+            # 自身私聊回传的发送者仍是机器人，target_id 才是会话对端。
+            target = payload.get("target_id")
+            if isinstance(target, bool) or not isinstance(target, (str, int)):
+                raise ValueError("自身私聊回传缺少有效 target_id")
+            private_peer_id = str(target).strip()
+            if not private_peer_id.isascii() or not private_peer_id.isdecimal() or int(private_peer_id) <= 0:
+                raise ValueError("自身私聊回传缺少有效 target_id")
         # SnowLuma 的推送不带 group_name，需要查询对端补全（移植自 SnowLuma 适配器）；
         # NapCat 推送自带该字段，查询不会触发。
         group_name = await self._resolve_group_name(payload, group_id) if is_group_chat else ""
@@ -93,7 +104,7 @@ class QQInboundCodec(QQInboundCardMixin, QQInboundTextMixin):
         if is_group_chat and group_id:
             additional_config["platform_io_target_group_id"] = group_id
         else:
-            additional_config["platform_io_target_user_id"] = sender_user_id
+            additional_config["platform_io_target_user_id"] = private_peer_id
             if group_id:
                 additional_config["platform_io_temp_group_id"] = group_id
         if platform_card_payloads:

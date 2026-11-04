@@ -1,5 +1,12 @@
 # Changelog
 
+## Neko maintenance candidate — 2026-11-04 (not deployed)
+
+- Preserve the sender while routing private self echoes by their explicit `target_id`.
+- Reject missing private self targets and group events without a group ID before media conversion.
+- Handle `message_sent` explicitly for both profiles; retain self-ignore and sender/peer blacklist choices.
+- Requires the matching host private-peer fix; no runtime configuration or historical data migration.
+
 ## [1.1.13] — 2026-10-30
 
 ### 细节

@@ -76,7 +76,7 @@ class QQEventRouter:
             payload: 对端推送的原始事件数据。
         """
         post_type = str(payload.get("post_type") or "").strip()
-        if post_type == "message":
+        if post_type in {"message", "message_sent"}:
             await self.handle_inbound_message(payload)
             return
         if post_type == "notice":
@@ -122,6 +122,13 @@ class QQEventRouter:
 
         group_id = str(payload.get("group_id") or "").strip()
         if self_id and sender_user_id == self_id and settings.debug.ignore_self_message:
+            return
+        if (
+            self_id and sender_user_id == self_id
+            and str(payload.get("message_type") or "private").strip() != "group"
+            and str(payload.get("target_id") or "").strip() in settings.filters.ban_user_id
+        ):
+            self._logger.debug("自身私聊回传的对端在黑名单中，消息已丢弃")
             return
         if await runtime.official_bot_guard.should_reject(
             sender_user_id=sender_user_id,
