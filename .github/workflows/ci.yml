@@ -8,7 +8,7 @@ permissions:
 jobs:
   tests:
     name: runtime (${{ matrix.case }})
-    if: github.repository == 'znzsofficial/maibot-snowluma-adapter'
+    if: github.repository == 'RoselindLabs/maibot-snowluma-adapter'
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
     strategy:
