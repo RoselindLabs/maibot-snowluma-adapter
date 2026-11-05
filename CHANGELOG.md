@@ -1,5 +1,12 @@
 # Changelog
 
+## Neko maintenance revision — 2026-11-05
+
+- Separate SnowLuma private recall actor, rendered author and private peer routing.
+- Recover missing operators through the real SDK's existing session-scoped message query, checking account, scope, private peer and message identity; no new permissions or global message-ID lookup.
+- Skip unprovable recalls rather than attributing them to the peer or creating an unknown-user session. Keep notice switches, self-message settings, group notices and NapCat semantics.
+- Add isolated real-SDK regressions for self/peer recalls, missing evidence and cross-account/session rejection; no historical edits, Host/protocol changes or QQ/model probes.
+
 ## Neko maintenance revision — 2026-11-04
 
 - Preserve the sender while routing private self echoes by their explicit `target_id`.

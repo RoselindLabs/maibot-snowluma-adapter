@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Awaitable, Callable, List, Mapping
+from typing import Any, Awaitable, Callable, List, Mapping, Optional
 
 from ...qq_face_map import QQ_FACE_DESCRIPTIONS
 
@@ -22,6 +22,8 @@ class QQNoticeTextRenderer:
         payload: Mapping[str, Any],
         resolve_display_name: DisplayNameResolver,
         self_id: str,
+        *,
+        recall_actor_user_id: Optional[str] = None,
     ) -> str:
         """根据通知事件生成可读文本。
 
@@ -38,7 +40,9 @@ class QQNoticeTextRenderer:
         group_id = str(payload.get("group_id") or "").strip()
 
         if notice_type in {"group_recall", "friend_recall"}:
-            return await self._build_recall_notice_text(payload, resolve_display_name, group_id, notice_type)
+            return await self._build_recall_notice_text(
+                payload, resolve_display_name, group_id, notice_type, recall_actor_user_id,
+            )
         if notice_type == "notify" and sub_type == "poke":
             return await self._build_poke_notice_text(payload, resolve_display_name, group_id, self_id)
         if notice_type == "notify" and sub_type == "group_name":
@@ -68,13 +72,16 @@ class QQNoticeTextRenderer:
         resolve_display_name: DisplayNameResolver,
         group_id: str,
         notice_type: str,
+        recall_actor_user_id: Optional[str],
     ) -> str:
         """构造撤回通知文本（含消息 ID 后缀）。"""
 
         message_id = str(payload.get("message_id") or "").strip()
         suffix = f"（消息ID:{message_id}）" if message_id else ""
         if notice_type == "friend_recall":
-            user_name = await resolve_display_name("", str(payload.get("user_id") or "").strip(), "QQ用户")
+            if not recall_actor_user_id:
+                return f"[事件-好友撤回] 一条私聊消息已被撤回{suffix}"
+            user_name = await resolve_display_name("", recall_actor_user_id, "QQ用户")
             return f"[事件-好友撤回] {user_name} 撤回了一条消息{suffix}"
 
         operator_name = await resolve_display_name(group_id, str(payload.get("operator_id") or "").strip(), "QQ用户")

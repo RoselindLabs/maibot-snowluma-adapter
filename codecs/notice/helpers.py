@@ -8,6 +8,23 @@ from typing import Any, Mapping, Optional
 import json
 
 
+def normalize_qq_user_id(value: Any) -> str:
+    """Accept a positive QQ number, not bools, containers or guessed identities."""
+    if isinstance(value, bool) or not isinstance(value, (int, str)):
+        return ""
+    text = str(value).strip()
+    return text if text.isascii() and text.isdecimal() and int(text) > 0 else ""
+
+
+def resolve_friend_recall_peer(payload: Mapping[str, Any]) -> str:
+    """SnowLuma's user_id is the peer, independently of who recalled the message."""
+    user_id = normalize_qq_user_id(payload.get("user_id"))
+    self_id = normalize_qq_user_id(payload.get("self_id"))
+    if user_id == self_id:
+        user_id = normalize_qq_user_id(payload.get("target_id"))
+    return user_id if user_id != self_id else ""
+
+
 def build_payload_digest(payload: Mapping[str, Any]) -> str:
     """对通知载荷生成稳定哈希。
 

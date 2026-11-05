@@ -10,7 +10,7 @@ import time
 from ...services import QQQueryService
 from ...types import QQPayload, QQPayloadDict
 from .enricher import QQNoticeEntityResolver
-from .helpers import build_payload_digest, resolve_actor_user_id
+from .helpers import build_payload_digest, resolve_actor_user_id, resolve_friend_recall_peer
 from .meta_event_logger import QQMetaEventObserver
 from .renderer import QQNoticeTextRenderer
 
@@ -33,7 +33,9 @@ class QQNoticeCodec:
         """清空通知编解码层的短期缓存（断连时调用）。"""
         self._entity_resolver.clear_cache()
 
-    async def build_notice_message_dict(self, payload: QQPayload) -> Optional[QQPayloadDict]:
+    async def build_notice_message_dict(
+        self, payload: QQPayload, *, recall_actor_user_id: Optional[str] = None,
+    ) -> Optional[QQPayloadDict]:
         """将 ``notice`` 事件转换为 Host 可接受的消息字典。
 
         Args:
@@ -49,6 +51,16 @@ class QQNoticeCodec:
         group_id = str(payload.get("group_id") or "").strip()
         user_id = resolve_actor_user_id(payload)
         self_id = str(payload.get("self_id") or "").strip()
+        private_peer = user_id
+        if notice_type == "friend_recall":
+            private_peer = resolve_friend_recall_peer(payload)
+            if not private_peer or group_id:
+                return None
+            if recall_actor_user_id is not None:
+                user_id = recall_actor_user_id
+            # Host cannot route an unknown actor by peer yet. Do not create a notice/self stream.
+            if not user_id:
+                return None
 
         user_info = await self._entity_resolver.build_user_info(group_id=group_id, user_id=user_id)
         group_info = await self._entity_resolver.build_group_info(group_id)
@@ -56,6 +68,7 @@ class QQNoticeCodec:
             payload,
             self._entity_resolver.resolve_display_name,
             self_id,
+            recall_actor_user_id=user_id if notice_type == "friend_recall" else None,
         )
         if not notice_text:
             return None
@@ -67,8 +80,8 @@ class QQNoticeCodec:
         }
         if group_id:
             additional_config["platform_io_target_group_id"] = group_id
-        elif user_id:
-            additional_config["platform_io_target_user_id"] = user_id
+        elif private_peer:
+            additional_config["platform_io_target_user_id"] = private_peer
 
         message_info: Dict[str, Any] = {"user_info": user_info, "additional_config": additional_config}
         if group_info is not None:

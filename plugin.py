@@ -985,6 +985,7 @@ class SnowLumaAdapterPlugin(
                 logger=self.ctx.logger,
                 gateway_name=SNOWLUMA_GATEWAY_NAME,
                 load_settings=self._load_settings,
+                host_context=self.ctx,
             )
 
         if self._runtime_bundle is None:

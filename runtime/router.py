@@ -7,9 +7,11 @@ from typing import Any, Callable, Dict, Mapping, Optional, Protocol
 import asyncio
 
 from ..config import QQPluginSettings
+from ..codecs.notice.helpers import normalize_qq_user_id, resolve_friend_recall_peer
 from ..profile import PROFILE_BY_TYPE, probe_client_profile
 from ..types import QQPayloadDict
 from .bundle import QQRuntimeBundle
+from .private_recall import QQPrivateRecallResolver
 
 
 class _GatewayCapabilityProtocol(Protocol):
@@ -37,6 +39,7 @@ class QQEventRouter:
         logger: Any,
         gateway_name: str,
         load_settings: Callable[[], QQPluginSettings],
+        host_context: Any = None,
     ) -> None:
         """初始化事件路由器。
 
@@ -51,6 +54,7 @@ class QQEventRouter:
         self._gateway_name = gateway_name
         self._load_settings = load_settings
         self._runtime: Optional[QQRuntimeBundle] = None
+        self._private_recall_resolver = QQPrivateRecallResolver(host_context, logger)
 
     def bind_runtime(self, runtime: QQRuntimeBundle) -> None:
         """绑定当前路由器使用的运行时依赖。
@@ -206,7 +210,21 @@ class QQEventRouter:
             )
             return
 
-        message_dict = await runtime.notice_codec.build_notice_message_dict(payload)
+        if notice_type == "friend_recall" and runtime.profile.client_type == "snowluma":
+            peer = resolve_friend_recall_peer(payload)
+            if not peer or payload.get("group_id") or not normalize_qq_user_id(self_id):
+                return
+            actor = await self._private_recall_resolver.resolve(payload, self_id, connection_id or "", peer)
+            if not actor:
+                self._logger.debug("私聊撤回缺少可核验操作者，跳过通知以避免身份或会话误标")
+                return
+            if actor in settings.filters.ban_user_id:
+                return
+            message_dict = await runtime.notice_codec.build_notice_message_dict(
+                payload, recall_actor_user_id=actor,
+            )
+        else:
+            message_dict = await runtime.notice_codec.build_notice_message_dict(payload)
         if message_dict is None:
             return
 
