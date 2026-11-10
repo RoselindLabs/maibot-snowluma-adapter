@@ -1,5 +1,11 @@
 # Changelog
 
+## Neko 1.3.1 integration candidate — 2026-11-10
+
+- Merge official v1.3.1 / 2583f411c33b1e58a5e7d837a95fa283072e5842 into deployed maintenance source dad01a7.
+- Retain video delivery's total 25-second budget, normal configured timeout, bounded diagnostics, exact private identities, lease filtering and unknown no-replay behavior.
+- Require Host >=1.4.4 with migration-before-rebuild support; production Host1.4.3 is not eligible. Candidate only, pending host review and deployment authorization.
+
 ## Neko integration candidate — 2026-11-10
 
 - Merge official v1.3.0 / 3748b4b462f21f65ffd8264344a9b476dfea4aed into the maintained private-identity fixes.
@@ -22,6 +28,17 @@
 - Handle `message_sent` explicitly for both profiles; retain self-ignore and sender/peer blacklist choices.
 - Requires the matching host private-peer fix; no runtime configuration or historical data migration.
 - Deployed maintenance source `b44d874` with host `1f1c41d0e` after dual-platform contracts/package gates and standard hot reload. Later documentation commits are not deployment revisions.
+
+## [1.3.1] — 2026-11-10
+
+### 升级要求
+
+- 最低宿主版本为 MaiBot 1.4.4，且必须包含插件配置先迁移、后重建的修复。未包含修复的同版本宿主仍有旧配置丢失风险，请先更新宿主；已经丢失的配置需从备份恢复。
+- 撤下存在旧配置升级问题的 v1.3.0 Release，使用新的 v1.3.1 标签发布。
+
+### 细节
+
+- 配置迁移：在默认值补齐前迁移旧连接段与功能开关，保留远程地址、端口和 Token，支持旧 `host` / `access_token` 字段，并优先保留新配置中显式填写的值；需配合主程序先迁移、后重建配置的修复。
 
 ## [1.3.0] — 2026-11-10
 
