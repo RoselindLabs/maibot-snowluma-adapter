@@ -158,12 +158,15 @@ class QQTransportClient:
         await self._notify_connection_closed()
         self._fail_pending_actions("连接已关闭")
 
-    async def call_action(self, action_name: str, params: Dict[str, Any]) -> Dict[str, Any]:
+    async def call_action(
+        self, action_name: str, params: Dict[str, Any], *, timeout_sec: Optional[float] = None
+    ) -> Dict[str, Any]:
         """发送 OneBot 动作并等待对应的 echo 响应。
 
         Args:
             action_name: OneBot 动作名称。
             params: 动作参数。
+            timeout_sec: 本次动作的回执等待期限；省略时沿用连接配置。
 
         Returns:
             Dict[str, Any]: 对端返回的原始响应字典。
@@ -185,9 +188,14 @@ class QQTransportClient:
         try:
             async with self._send_lock:
                 await ws.send_str(json.dumps(request_payload, ensure_ascii=False))
-            return await asyncio.wait_for(response_future, timeout=server_config.action_timeout_sec)
+            return await asyncio.wait_for(
+                response_future,
+                timeout=server_config.action_timeout_sec if timeout_sec is None else timeout_sec,
+            )
         finally:
             self._pending_actions.pop(echo_id, None)
+            if not response_future.done():
+                response_future.cancel()
 
     async def _connection_loop(self) -> None:
         """维护单个 WebSocket 连接，并在断开后按配置重连。"""

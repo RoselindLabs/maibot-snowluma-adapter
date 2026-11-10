@@ -5,6 +5,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional
 
 import asyncio
+import re
+import time
 
 try:
     from aiohttp import ClientSession, ClientTimeout
@@ -20,6 +22,21 @@ from ..capabilities import require_standard_action
 if TYPE_CHECKING:
     from ..profile import ProfileState
     from ..transport import QQTransportClient
+
+
+# Video -> Host cap.call defaults to 30s; gateway RPC defaults to 60s.
+# This total includes queueing, send and authoritative group confirmation,
+# leaving 5s for the outer capability RPC. It never schedules another send.
+VIDEO_ACTION_BUDGET_SEC = 25.0
+
+
+def _is_video_send(action_name: str, params: Mapping[str, Any]) -> bool:
+    if action_name not in {"send_msg", "send_group_msg", "send_private_msg"}:
+        return False
+    message = params.get("message")
+    return isinstance(message, list) and any(
+        isinstance(segment, Mapping) and segment.get("type") == "video" for segment in message
+    )
 
 
 class QQActionService:
@@ -61,18 +78,42 @@ class QQActionService:
                 if isinstance(value, bool) or not isinstance(value, (str, int)):
                     raise ValueError(f"{action_name}.{key} 必须是整数 ID")
                 normalized_params[key] = int(value)
+        video_send = _is_video_send(action_name, normalized_params)
+        started = time.monotonic()
+        stage = "send_wait"
+        safe_action = re.sub(r"[^a-zA-Z0-9_]", "_", action_name)[:64]
         try:
-            response = await self._transport.call_action(action_name, normalized_params)
-        except asyncio.CancelledError:
-            raise
-        except Exception as exc:
-            raise RuntimeError(f"对端动作执行失败: action={action_name} error={exc}") from exc
+            async with asyncio.timeout(VIDEO_ACTION_BUDGET_SEC if video_send else None):
+                try:
+                    if video_send:
+                        response = await self._transport.call_action(
+                            action_name, normalized_params, timeout_sec=VIDEO_ACTION_BUDGET_SEC
+                        )
+                    else:
+                        response = await self._transport.call_action(action_name, normalized_params)
+                except Exception as exc:
+                    # Exception text may contain request data; retain only its class.
+                    raise RuntimeError(
+                        f"对端动作执行失败（投递可能未知，不自动重发）: action={safe_action} "
+                        f"stage={stage} error_type={type(exc).__name__} "
+                        f"elapsed_sec={time.monotonic() - started:.3f}"
+                    ) from exc
 
-        if str(response.get("status") or "").lower() != "ok" or response.get("retcode", 0) != 0:
-            error_message = str(response.get("wording") or response.get("message") or "unknown")
-            raise RuntimeError(f"对端动作返回失败: action={action_name} message={error_message}")
-        await self._confirm_group_delivery(action_name, normalized_params, response)
-        return response
+                if str(response.get("status") or "").lower() != "ok" or response.get("retcode", 0) != 0:
+                    error_message = str(response.get("wording") or response.get("message") or "unknown")
+                    raise RuntimeError(f"对端动作返回失败: action={action_name} message={error_message}")
+                stage = "group_confirm"
+                await self._confirm_group_delivery(action_name, normalized_params, response)
+                return response
+        except (TimeoutError, asyncio.CancelledError) as exc:
+            diagnostic = (
+                f"动作结果未确认: action={safe_action} stage={stage} "
+                f"error_type={type(exc).__name__} elapsed_sec={time.monotonic() - started:.3f}；不自动重发"
+            )
+            self._logger.warning(diagnostic)
+            if isinstance(exc, asyncio.CancelledError):
+                raise
+            raise RuntimeError(diagnostic) from exc
 
     async def _confirm_group_delivery(
         self, action_name: str, params: Mapping[str, Any], response: Mapping[str, Any]
