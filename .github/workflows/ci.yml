@@ -15,8 +15,8 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {case: linux-production, os: ubuntu-24.04, python: '3.14.4'}
-          - {case: windows-minimum, os: windows-latest, python: '3.12'}
+          - {case: linux-production, os: ubuntu-24.04, python: '3.14.4', sdk: '2.22.1'}
+          - {case: windows-minimum, os: windows-latest, python: '3.12', sdk: '2.20.0'}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -25,7 +25,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: Install actual SDK and test dependencies
-        run: python -I -m pip install "maibot-plugin-sdk==2.20.0" "aiohttp==3.14.3" "pytest==9.0.3" "pytest-asyncio==1.3.0"
+        run: python -I -m pip install "maibot-plugin-sdk==${{ matrix.sdk }}" "aiohttp==3.14.3" "pytest==9.0.3" "pytest-asyncio==1.3.0"
       - run: python -I -m pip check
       - name: Run tests
         run: python -I scripts/check.py

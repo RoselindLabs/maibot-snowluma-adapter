@@ -1,5 +1,13 @@
 # Changelog
 
+## Neko integration candidate — 2026-11-10
+
+- Merge official v1.3.0 / 3748b4b462f21f65ffd8264344a9b476dfea4aed into the maintained private-identity fixes.
+- Retain peer blacklisting when ordinary routing resumes after identity-only leases; preserve exact private recall resolution and signed delivery confirmation without replay.
+- Verify actual SDK 2.20.0 and 2.22.1; include the upstream v2 icon in source packaging and preserve the maintenance-only publish gate.
+- Allow only the synthetic OneBot WebSocket fixture's allocated loopback port in the test network guard; external connections remain blocked on Linux and Windows.
+- Candidate only: no deployment, configuration/data migration, QQ/model probes or default-branch update.
+
 ## Neko maintenance revision — 2026-11-05
 
 - Separate SnowLuma private recall actor, rendered author and private peer routing.
@@ -14,6 +22,18 @@
 - Handle `message_sent` explicitly for both profiles; retain self-ignore and sender/peer blacklist choices.
 - Requires the matching host private-peer fix; no runtime configuration or historical data migration.
 - Deployed maintenance source `b44d874` with host `1f1c41d0e` after dual-platform contracts/package gates and standard hot reload. Later documentation commits are not deployment revisions.
+
+## [1.3.0] — 2026-11-10
+
+### 主要功能
+
+- OneBot：新增 v11 标准模式。
+- 修改描述和插件名称
+- 消息发送：支持通过 SDK `send.custom("json", ...)` 发送 JSON／QQ 小程序卡片，保留完整卡片字段，无效或空卡片在发送前明确报错。
+
+### 细节
+
+- 修复一些稳定性问题
 
 ## [1.1.13] — 2026-10-30
 

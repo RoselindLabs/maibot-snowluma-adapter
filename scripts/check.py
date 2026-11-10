@@ -5,10 +5,13 @@ import sys
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
+LOCAL_TEST_ENDPOINTS = set()
 
 
 def network_guard(event, args):
     if event == 'socket.connect':
+        if args[1] in LOCAL_TEST_ENDPOINTS:
+            return
         # Windows asyncio's own socketpair needs a narrowly scoped loopback connection.
         caller = sys._getframe(1)
         address = args[1]
@@ -21,6 +24,20 @@ def network_guard(event, args):
 
 
 class ResultGate:
+    @pytest.fixture(autouse=True)
+    def local_onebot_fixture(self, request):
+        # Only the upstream synthetic WebSocket test's allocated loopback port.
+        # Keep external sockets and all other loopback services inaccessible.
+        endpoint = None
+        if request.node.name == 'test_real_websocket_handshake_receive_send_and_disconnect':
+            endpoint = ('127.0.0.1', request.getfixturevalue('unused_tcp_port'))
+            LOCAL_TEST_ENDPOINTS.add(endpoint)
+        try:
+            yield
+        finally:
+            if endpoint is not None:
+                LOCAL_TEST_ENDPOINTS.discard(endpoint)
+
     def __init__(self):
         self.collected = set()
         self.passed = set()
@@ -50,6 +67,7 @@ if __name__ == '__main__':
     package = ModuleType('plugins.MaiBot-SnowLuma-Adapter-main')
     package.__path__ = [str(ROOT)]
     sys.modules[package.__name__] = package
+    setattr(plugins, 'MaiBot-SnowLuma-Adapter-main', package)
     raise SystemExit(pytest.main([
         '-p', 'pytest_asyncio.plugin', '-o', 'asyncio_mode=auto', str(ROOT / 'tests'), '-q',
     ], plugins=[ResultGate()]))

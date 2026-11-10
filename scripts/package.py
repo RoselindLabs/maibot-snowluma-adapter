@@ -19,7 +19,7 @@ def source_files():
             continue
         if (name.as_posix() in ROOT_FILES or (len(name.parts) == 1 and path.suffix == '.py')
                 or (name.parts[0] in SOURCE_DIRS and path.suffix == '.py')
-                or name.as_posix() == 'assets/icon.jpg'):
+                or name.as_posix() in {'assets/icon.jpg', 'assets/icon-v2.png'}):
             yield name.as_posix(), path.read_bytes()
 
 
@@ -29,6 +29,8 @@ if __name__ == '__main__':
         artifact = directory / 'source.zip'
         members = dict(source_files())
         assert 'runtime/router.py' in members and '_manifest.json' in members
+        icon = json.loads(members['_manifest.json'])['display']['icon']
+        assert icon['type'] != 'local' or icon['value'] in members
         with zipfile.ZipFile(artifact, 'w', zipfile.ZIP_DEFLATED) as archive:
             for name, data in members.items():
                 if name.endswith('.py'):

@@ -104,3 +104,29 @@ async def test_existing_ignore_and_blacklist_choices_remain_effective(options):
     await router.handle_transport_payload(payload())
     gateway.route_message.assert_not_awaited()
     codec.convert_segments_with_metadata.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_private_peer_blacklist_survives_identity_lease_expiry_during_decode(monkeypatch):
+    lease_module = import_module(f"{PACKAGE}.services.identity_only_lease")
+    clock = SimpleNamespace(now=1000.0)
+    monkeypatch.setattr(lease_module, "time", SimpleNamespace(
+        monotonic=lambda: clock.now, time=lease_module.time.time,
+    ))
+    router, gateway, codec = setup_route(banned=["200"])
+    router.identity_only_lease.update("100", "test-owner", True)
+    original = codec.build_message_dict
+
+    async def decode(*args):
+        clock.now += 15
+        return await original(*args)
+
+    monkeypatch.setattr(codec, "build_message_dict", decode)
+    await router.handle_transport_payload(payload())
+    gateway.route_message.assert_not_awaited()
+    assert not router.identity_only_lease.active("100")
+    assert router.identity_observations.snapshot("100", ["200"])["observations"] == []
+    codec.convert_segments_with_metadata.reset_mock()
+    await router.handle_transport_payload(payload())
+    codec.convert_segments_with_metadata.assert_not_awaited()
+    gateway.route_message.assert_not_awaited()
